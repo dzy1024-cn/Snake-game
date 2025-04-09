@@ -7,11 +7,13 @@ body {
     height: 100vh;
     overflow: hidden;
     position: relative;
+    transition: background 0.3s ease;
 }
 
 /* 深色模式样式 */
 body.dark-mode {
     background: linear-gradient(45deg, #333, #444);
+    color: #fff;
 }
 
 /* 动态背景 */
@@ -76,11 +78,15 @@ body.dark-mode .game-container {
     border-radius: 10px;
     cursor: pointer;
     z-index: 100;
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    border: 2px solid #20232a;
+    color: #20232a;
+    transition: all 0.3s ease;
 }
 
 body.dark-mode #themeToggle {
-    background: #fff;
-    color: #333;
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    color: #fff;
 }
 
 /* 按钮样式 */
@@ -101,7 +107,7 @@ button {
 
 body.dark-mode button {
     background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: #20232a;
+    color: #fff;
 }
 
 button::before {
@@ -341,7 +347,7 @@ body.dark-mode .achievement-toast .achievement-description {
 
 body.dark-mode .direction-buttons button {
     background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: #20232a;
+    color: #fff;
 }
 
 /* 暂停按钮样式 */
@@ -358,7 +364,7 @@ body.dark-mode .direction-buttons button {
 
 body.dark-mode #pause {
     background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: #20232a;
+    color: #fff;
 }
 
 /* 暂停遮罩层样式 */
@@ -543,10 +549,6 @@ body.dark-mode .splash-logo h1 {
 body.dark-mode .spinner {
     border: 4px solid rgba(255, 255, 255, 0.3);
     border-top-color: white;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
 }
 
 .splash-loader p {
