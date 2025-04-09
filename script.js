@@ -21,6 +21,8 @@ let startTime;
 let timerInterval;
 let level = 1;
 const levelThresholds = [20, 50, 100, 200, 300];
+let hasShield = false;
+let shieldActiveUntilNextFood = false; // 新增：护盾持续到下一个食物
 
 // 难度级别设置
 const difficultyLevels = {
@@ -56,6 +58,8 @@ function initGame() {
     gamePaused = false;
     waitingForInput = true;
     level = 1;
+    hasShield = false;
+    shieldActiveUntilNextFood = false; // 重置护盾状态
 
     document.getElementById('score').innerText = score;
     document.getElementById('timer').innerText = '0';
@@ -108,16 +112,12 @@ function generateFood() {
 
     // 有一定概率生成特殊食物
     if (Math.random() < 0.1) {
-        // 长时间加速食物
         newFood.type = 'speed';
     } else if (Math.random() < 0.15) {
-        // 长段食物
         newFood.type = 'long';
     } else if (Math.random() < 0.2) {
-        // 护盾食物
         newFood.type = 'shield';
     } else {
-        // 普通食物
         newFood.type = 'normal';
     }
 
@@ -135,12 +135,11 @@ function gameLoop() {
 // 更新游戏状态
 function update() {
     if (waitingForInput) {
-        // 检查是否有方向输入
         if (direction.x !== 0 || direction.y !== 0) {
             waitingForInput = false;
-            startTime = Date.now() - (Date.now() - startTime); // 重新计算开始时间
+            startTime = Date.now() - (Date.now() - startTime);
         } else {
-            return; // 没有输入，不更新游戏
+            return;
         }
     }
 
@@ -149,13 +148,24 @@ function update() {
     let deathReason = '';
     let gameOver = false;
 
-    // 检查碰撞
+    // 检查碰撞 - 修改后的护盾逻辑
     if (head.x < 0 || head.x >= tileCountWidth || head.y < 0 || head.y >= tileCountHeight) {
-        deathReason = '你撞到了墙壁!';
-        gameOver = true;
-    } else if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
-        deathReason = '你撞到了自己!';
-        gameOver = true;
+        if (!hasShield && !shieldActiveUntilNextFood) {
+            deathReason = '你撞到了墙壁!';
+            gameOver = true;
+        } else {
+            // 护盾生效，穿墙
+            if (head.x < 0) head.x = tileCountWidth - 1;
+            else if (head.x >= tileCountWidth) head.x = 0;
+            if (head.y < 0) head.y = tileCountHeight - 1;
+            else if (head.y >= tileCountHeight) head.y = 0;
+        }
+    } else if (snake.some((segment, index) => index !== 0 && segment.x === head.x && segment.y === head.y)) {
+        if (!hasShield && !shieldActiveUntilNextFood) {
+            deathReason = '你撞到了自己!';
+            gameOver = true;
+        }
+        // 有护盾时允许穿过自己身体
     }
 
     if (gameOver) {
@@ -168,10 +178,15 @@ function update() {
 
     // 检查是否吃到食物
     if (head.x === food.x && head.y === food.y) {
+        // 检查是否需要取消护盾
+        if (shieldActiveUntilNextFood) {
+            shieldActiveUntilNextFood = false;
+            showAchievement('护盾失效', '护盾效果已消失');
+        }
+        
         score++;
         document.getElementById('score').innerText = score;
         
-        // 检查是否升级
         if (score >= levelThresholds[level - 1] && level < levelThresholds.length) {
             level++;
             difficultyLevels[difficulty] -= 10;
@@ -181,7 +196,6 @@ function update() {
             showAchievement('恭喜！', `你已升级到第${level}关！游戏速度将加快！`);
         }
         
-        // 特殊食物效果
         if (food.type === 'speed') {
             showAchievement('速度提升！', '蛇的速度将加快一段时间');
             clearInterval(gameInterval);
@@ -196,17 +210,12 @@ function update() {
             }
             showAchievement('长段食物！', '蛇将变长更多段');
         } else if (food.type === 'shield') {
-            showAchievement('护盾激活！', '蛇在一段时间内无敌');
-            // 设置护盾状态
-            hasShield = true;
-            setTimeout(() => {
-                hasShield = false;
-            }, 8000);
+            showAchievement('护盾激活！', '可以穿墙和穿过身体直到吃到下一个食物！');
+            shieldActiveUntilNextFood = true;
         }
         
         food = generateFood();
         
-        // 成就检测
         if (!achievements.firstEat && score > 0) {
             achievements.firstEat = true;
             showAchievement('初尝果实！', '吃下第一份食物！');
@@ -227,27 +236,17 @@ function update() {
         snake.pop();
     }
 
-    // 更新计时器
     updateTimer();
 }
 
 // 绘制游戏画面
 function draw() {
     // 绘制背景网格
-    ctx.fillStyle = '#f5f7fa';
+    ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#222' : '#f5f7fa';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (document.body.classList.contains('dark-mode')) {
-        ctx.fillStyle = '#222';
-    } else {
-        ctx.fillStyle = '#f5f7fa';
-    }
-
     // 绘制网格线
-    ctx.strokeStyle = '#e0e0e0';
-    if (document.body.classList.contains('dark-mode')) {
-        ctx.strokeStyle = '#444';
-    }
+    ctx.strokeStyle = document.body.classList.contains('dark-mode') ? '#444' : '#e0e0e0';
     ctx.lineWidth = 0.5;
 
     // 水平线
@@ -267,28 +266,39 @@ function draw() {
     }
 
     // 绘制蛇
-    ctx.fillStyle = '#4ecdc4';
-    if (document.body.classList.contains('dark-mode')) {
-        ctx.fillStyle = '#4ecdc4';
-    }
+    const snakeColor = document.body.classList.contains('dark-mode') ? '#ffffff' : '#4ecdc4';
+    const snakeHeadColor = '#ff6b6b';
+    const snakeEyeColor = document.body.classList.contains('dark-mode') ? '#000000' : '#ffffff';
+
     snake.forEach((segment, index) => {
         if (index === 0) {
-            // 蛇头使用特殊样式
-            ctx.fillStyle = '#ff6b6b';
-            if (document.body.classList.contains('dark-mode')) {
-                ctx.fillStyle = '#ff6b6b';
-            }
+            // 蛇头
+            ctx.fillStyle = snakeHeadColor;
             ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
 
-            // 添加蛇眼
-            ctx.fillStyle = 'white';
-            if (document.body.classList.contains('dark-mode')) {
-                ctx.fillStyle = 'white';
-            }
+            // 蛇眼
+            ctx.fillStyle = snakeEyeColor;
             ctx.fillRect(segment.x * gridSize + 4, segment.y * gridSize + 4, 4, 4);
             ctx.fillRect(segment.x * gridSize + gridSize - 8, segment.y * gridSize + 4, 4, 4);
         } else {
+            // 蛇身
+            ctx.fillStyle = snakeColor;
             ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
+        }
+
+        // 护盾视觉效果
+        if (shieldActiveUntilNextFood) {
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = '#4ecdc4';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                segment.x * gridSize - 2,
+                segment.y * gridSize - 2,
+                gridSize + 4,
+                gridSize + 4
+            );
+            ctx.restore();
         }
     });
 
@@ -305,11 +315,7 @@ function draw() {
         );
         ctx.fill();
         
-        // 绘制速度图标
         ctx.fillStyle = 'white';
-        if (document.body.classList.contains('dark-mode')) {
-            ctx.fillStyle = 'white';
-        }
         ctx.font = '16px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -326,16 +332,13 @@ function draw() {
         );
         ctx.fill();
         
-        // 绘制长段图标
         ctx.fillStyle = 'white';
-        if (document.body.classList.contains('dark-mode')) {
-            ctx.fillStyle = 'white';
-        }
         ctx.font = '16px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('↔', food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2);
     } else if (food.type === 'shield') {
+        // 护盾食物带脉冲效果
         ctx.fillStyle = '#4ecdc4';
         ctx.beginPath();
         ctx.arc(
@@ -347,11 +350,23 @@ function draw() {
         );
         ctx.fill();
         
-        // 绘制护盾图标
+        // 脉冲动画
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(
+            food.x * gridSize + gridSize / 2,
+            food.y * gridSize + gridSize / 2,
+            gridSize / 2 + Math.sin(Date.now()/200)*3,
+            0,
+            Math.PI * 2
+        );
+        ctx.strokeStyle = '#4ecdc4';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+        
         ctx.fillStyle = 'white';
-        if (document.body.classList.contains('dark-mode')) {
-            ctx.fillStyle = 'white';
-        }
         ctx.font = '16px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -370,25 +385,23 @@ function draw() {
     }
 }
 
+
 // 结束游戏
 function endGame(reason) {
     clearInterval(gameInterval);
     gameRunning = false;
 
-    // 更新历史最高分
     if (score > highScore) {
         highScore = score;
         localStorage.setItem('snakeGameHighScore', highScore);
         document.getElementById('highScore').innerText = highScore;
     }
 
-    // 更新排行榜
     const playerName = prompt('恭喜！你获得了进入排行榜的资格！请输入你的名字：', '匿名玩家');
     if (playerName !== null) {
         updateLeaderboard(score, playerName);
     }
 
-    // 重启游戏
     if (confirm('游戏结束！是否重新开始？')) {
         initGame();
     } else {
@@ -403,7 +416,6 @@ function updateTimer() {
         const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
         document.getElementById('timer').innerText = elapsedSeconds;
 
-        // 成就检测
         if (!achievements.timeSurvived30 && elapsedSeconds >= 30) {
             achievements.timeSurvived30 = true;
             showAchievement('坚持就是胜利！', '存活时间达到30秒！');
@@ -446,6 +458,82 @@ function updateLeaderboard(score, name = '匿名玩家') {
     localStorage.setItem('snakeGameLeaderboard', JSON.stringify(leaderboard));
 }
 
+// 显示成就提示
+function showAchievement(title, description) {
+    const toast = document.getElementById('achievementToast');
+    const icon = toast.querySelector('.achievement-icon');
+    const titleElement = toast.querySelector('.achievement-title');
+    const descriptionElement = toast.querySelector('.achievement-description');
+    
+    const randomColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+    icon.style.backgroundColor = randomColor;
+    
+    titleElement.innerText = title;
+    descriptionElement.innerText = description;
+    
+    toast.classList.add('active');
+    
+    setTimeout(() => {
+        toast.classList.remove('active');
+    }, 5000);
+}
+
+// 更新时间显示
+function updateTimeDisplay() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecond: 3
+    });
+    document.getElementById('currentTime').textContent = timeString;
+}
+
+// 更新主题按钮文本
+function updateThemeText() {
+    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.innerText = document.body.classList.contains('dark-mode') 
+        ? '切换为浅色模式' 
+        : '切换为深色模式';
+}
+
+// 暂停功能
+function togglePause() {
+    gamePaused = !gamePaused;
+    document.getElementById('pause').innerText = gamePaused ? '继续' : '暂停';
+    
+    if (gamePaused) {
+        document.getElementById('pauseOverlay').style.display = 'flex';
+    } else {
+        document.getElementById('pauseOverlay').style.display = 'none';
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    // 加载保存的主题
+    const savedTheme = localStorage.getItem('themePreference');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+    }
+    updateThemeText();
+
+    // 更新时间显示
+    updateTimeDisplay();
+    setInterval(updateTimeDisplay, 1000);
+
+    // 启动画面
+    document.getElementById('splashScreen').style.display = 'flex';
+    
+    setTimeout(() => {
+        document.getElementById('splashScreen').classList.add('fadeOut');
+        setTimeout(() => {
+            document.getElementById('splashScreen').style.display = 'none';
+        }, 500);
+    }, 2000);
+});
+
 // 事件监听
 document.getElementById('startBtn').addEventListener('click', initGame);
 
@@ -456,9 +544,7 @@ document.querySelectorAll('.difficulty-btn').forEach(button => {
     });
 });
 
-document.getElementById('pause').addEventListener('click', () => {
-    togglePause();
-});
+document.getElementById('pause').addEventListener('click', togglePause);
 
 // 键盘控制
 document.addEventListener('keydown', e => {
@@ -505,74 +591,20 @@ document.getElementById('rightBtn').addEventListener('click', () => {
     if (direction.x !== -1) direction = { x: 1, y: 0 };
 });
 
-// 显示成就提示
-function showAchievement(title, description) {
-    const toast = document.getElementById('achievementToast');
-    const icon = toast.querySelector('.achievement-icon');
-    const titleElement = toast.querySelector('.achievement-title');
-    const descriptionElement = toast.querySelector('.achievement-description');
+// 主题切换
+document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    updateThemeText();
+    localStorage.setItem('themePreference', 
+        document.body.classList.contains('dark-mode') ? 'dark' : 'light');
     
-    // 随机生成成就图标背景色
-    const randomColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
-    icon.style.backgroundColor = randomColor;
-    
-    titleElement.innerText = title;
-    descriptionElement.innerText = description;
-    
-    toast.classList.add('active');
-    
-    setTimeout(() => {
-        toast.classList.remove('active');
-    }, 5000);
-}
-
-// 初始化时间显示
-function updateTimeDisplay() {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecond: 3
-    });
-    document.getElementById('currentTime').textContent = timeString;
-}
-
-// 页面加载完成后初始化时间显示
-document.addEventListener('DOMContentLoaded', () => {
-    // 更新时间显示
-    updateTimeDisplay();
-    setInterval(updateTimeDisplay, 1000);
-});
-
-// 启动画面逻辑
-document.addEventListener('DOMContentLoaded', () => {
-    // 显示启动画面
-    document.getElementById('splashScreen').style.display = 'flex';
-    
-    // 模拟加载过程
-    setTimeout(() => {
-        // 隐藏启动画面
-        document.getElementById('splashScreen').style.opacity = '0';
-        setTimeout(() => {
-            document.getElementById('splashScreen').style.display = 'none';
-        }, 500);
-    }, 2000);
-});
-
-// 暂停功能逻辑
-function togglePause() {
-    gamePaused = !gamePaused;
-    document.getElementById('pause').innerText = gamePaused ? '继续' : '暂停';
-    
-    if (gamePaused) {
-        document.getElementById('pauseOverlay').style.display = 'flex';
-    } else {
-        document.getElementById('pauseOverlay').style.display = 'none';
+    // 强制重绘
+    if (gameRunning) {
+        draw();
     }
-}
+});
 
-// 设置菜单逻辑
+// 设置菜单
 document.getElementById('settingsBtn').addEventListener('click', () => {
     document.getElementById('pauseOverlay').style.display = 'none';
     document.getElementById('settingsMenu').style.display = 'flex';
@@ -591,10 +623,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     }
 });
 
-// 暂停蒙层按钮逻辑
-document.getElementById('resumeBtn').addEventListener('click', () => {
-    togglePause();
-});
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
 
 // 难度设置变更
 document.getElementById('difficultySelect').addEventListener('change', (e) => {
@@ -604,39 +633,6 @@ document.getElementById('difficultySelect').addEventListener('change', (e) => {
 
 // 音效控制
 let soundEnabled = true;
-
 document.getElementById('soundToggle').addEventListener('change', (e) => {
     soundEnabled = e.target.checked;
-});
-
-// 分享功能
-document.getElementById('shareBtn').addEventListener('click', () => {
-    if (navigator.share) {
-        navigator.share({
-            title: '贪吃蛇游戏',
-            text: `我在贪吃蛇游戏得了${score}分，快来挑战我吧！`,
-            url: window.location.href
-        })
-        .catch(error => {
-            console.log('分享失败', error);
-            alert('分享失败，请手动复制链接分享');
-        });
-    } else {
-        alert('你的设备不支持原生分享功能，请手动复制链接分享');
-    }
-});
-
-// 排行榜功能
-document.getElementById('leaderboardBtn').addEventListener('click', () => {
-    alert('排行榜功能即将上线！');
-});
-
-// 主题切换功能
-document.getElementById('themeToggle').addEventListener('click', () => {
-    document.body.classList.toggle('dark-mode');
-    if (document.body.classList.contains('dark-mode')) {
-        document.getElementById('themeToggle').innerText = '切换为浅色模式';
-    } else {
-        document.getElementById('themeToggle').innerText = '切换为深色模式';
-    }
 });
