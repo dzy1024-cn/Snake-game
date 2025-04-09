@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇游戏</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- 启动画面 -->
+    <div id="splashScreen" class="splash-screen">
+        <div class="splash-logo">
+            <h1>贪吃蛇游戏</h1>
+            <div class="splash-loader">
+                <div class="spinner"></div>
+                <p>加载中...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="background-effect"></div>
+    <div class="loading-spinner"></div>
+
+    <div class="game-container">
+        <!-- 成就提示框 -->
+        <div id="achievementToast" class="achievement-toast">
+            <div class="achievement-icon">★</div>
+            <div class="achievement-content">
+                <div class="achievement-title" id="achievementTitle"></div>
+                <div class="achievement-description" id="achievementDescription"></div>
+            </div>
+        </div>
+
+        <!-- 时间显示 -->
+        <div id="timeDisplay">
+            <span id="cityName">本地时间:</span>
+            <span id="currentTime"></span>
+        </div>
+
+        <!-- 主题切换按钮 -->
+        <button id="themeToggle">切换为深色模式</button>
+
+        <!-- 开始界面 -->
+        <div id="startScreen">
+            <h1>贪吃蛇游戏</h1>
+            <button id="startBtn">开始游戏</button>
+            <div class="difficulty-options">
+                <button class="difficulty-btn" data-difficulty="easy">简单</button>
+                <button class="difficulty-btn" data-difficulty="medium">中等</button>
+                <button class="difficulty-btn" data-difficulty="hard">困难</button>
+            </div>
+            <div class="sound-options">
+                <label for="soundToggle">音效: </label>
+                <input type="checkbox" id="soundToggle" checked>
+            </div>
+        </div>
+
+        <!-- 游戏界面 -->
+        <div id="gameScreen" style="display: none;">
+            <div class="game-info">
+                <div class="score">得分: <span id="score">0</span></div>
+                <div class="timer">时间: <span id="timer">0</span>s</div>
+                <div class="level">关卡: <span id="level">1</span></div>
+                <div class="high-score">历史最高分: <span id="highScore">0</span></div>
+            </div>
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <div class="controls">
+                <!-- 方向按键 -->
+                <div class="direction-buttons">
+                    <button id="upBtn">↑</button>
+                    <button id="downBtn">↓</button>
+                    <button id="leftBtn">←</button>
+                    <button id="rightBtn">→</button>
+                </div>
+                <!-- 暂停按钮 -->
+                <div class="action-buttons">
+                    <button id="pause">暂停</button>
+                    <div class="keyboard-hint">
+                        <p>使用方向键或WASD控制蛇的方向</p>
+                        <p>按空格键暂停/继续游戏</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 暂停遮罩层 -->
+        <div id="pauseOverlay" class="pause-overlay">
+            <div class="pause-message">
+                <h2>游戏暂停</h2>
+                <div class="pause-options">
+                    <button id="resumeBtn">继续游戏</button>
+                    <button id="settingsBtn">设置</button>
+                    <button id="restartBtn">重新开始</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置菜单 -->
+        <div id="settingsMenu" class="settings-menu">
+            <div class="settings-content">
+                <h3>游戏设置</h3>
+                <div class="sound-settings">
+                    <label for="soundToggle">音效: </label>
+                    <input type="checkbox" id="soundToggle" checked>
+                </div>
+                <div class="difficulty-settings">
+                    <label for="difficultySelect">难度: </label>
+                    <select id="difficultySelect">
+                        <option value="easy">简单</option>
+                        <option value="medium">中等</option>
+                        <option value="hard">困难</option>
+                    </select>
+                </div>
+                <button id="closeSettings">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
