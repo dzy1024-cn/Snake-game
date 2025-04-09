@@ -7,6 +7,7 @@ body {
     height: 100vh;
     overflow: hidden;
     position: relative;
+    transition: background 0.3s ease;
 }
 
 /* 深色模式样式 */
@@ -30,8 +31,8 @@ body.dark-mode {
 
 body.dark-mode .background-effect {
     background: 
-        radial-gradient(circle at 20% 20%, rgba(255, 107, 107, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(78, 205, 196, 0.1) 0%, transparent 50%);
+        radial-gradient(circle at 20% 20%, rgba(255, 107, 107, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(78, 205, 196, 0.05) 0%, transparent 50%);
 }
 
 @keyframes backgroundFlow {
@@ -54,12 +55,12 @@ body.dark-mode .background-effect {
     padding: 40px;
     text-align: center;
     z-index: 10;
-    transition: transform 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 body.dark-mode .game-container {
     background: rgba(30, 30, 30, 0.9);
-    box-shadow: 0 0 40px rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
 }
 
 .game-container:hover {
@@ -76,32 +77,44 @@ body.dark-mode .game-container {
     border-radius: 10px;
     cursor: pointer;
     z-index: 100;
+    background: rgba(255, 255, 255, 0.7);
+    border: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    color: #20232a;
 }
 
 body.dark-mode #themeToggle {
-    background: #fff;
-    color: #333;
+    background: rgba(30, 30, 30, 0.7);
+    color: white;
+    border: 1px solid #555;
+}
+
+#themeToggle:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* 按钮样式 */
 button {
     background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
     border: 2px solid #20232a;
-    padding: 15px 30px;
-    font-size: 20px;
-    border-radius: 15px;
+    padding: 12px 24px;
+    font-size: 18px;
+    border-radius: 12px;
     color: #20232a;
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
     margin: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 body.dark-mode button {
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: #20232a;
+    background: linear-gradient(45deg, #2c3e50, #3498db);
+    color: #ecf0f1;
+    border-color: #ecf0f1;
 }
 
 button::before {
@@ -134,27 +147,6 @@ button:active {
     transform: scale(0.95);
 }
 
-button::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-        45deg,
-        transparent,
-        rgba(255, 255, 255, 0.3),
-        transparent
-    );
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-button:hover::after {
-    opacity: 1;
-}
-
 /* 游戏画布 */
 #gameCanvas {
     border: 2px solid rgba(78, 205, 196, 0.3);
@@ -170,46 +162,13 @@ body.dark-mode #gameCanvas {
     box-shadow: 0 0 30px rgba(78, 205, 196, 0.1), inset 0 0 20px rgba(78, 205, 196, 0.05);
 }
 
-/* 加载动画 */
-.loading-spinner {
-    display: none;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 50px;
-    height: 50px;
-    border: 4px solid #4ecdc4;
-    border-radius: 50%;
-    border-top-color: transparent;
-    animation: spin 1s linear infinite;
-    z-index: 1000;
-}
-
-@keyframes spin {
-    to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-/* 响应式布局 */
-@media (max-width: 768px) {
-    .game-container {
-        width: 95%;
-        padding: 20px;
-    }
-    
-    #gameCanvas {
-        width: 95%;
-        height: auto;
-        aspect-ratio: 4/3;
-    }
-}
-
 /* 时间显示样式 */
 #timeDisplay {
     font-size: 42px;
     color: #20232a;
     margin: 20px 0;
     text-align: center;
+    transition: color 0.3s ease;
 }
 
 body.dark-mode #timeDisplay {
@@ -232,7 +191,7 @@ body.dark-mode #timeDisplay {
 /* 成就提示框样式 */
 .achievement-toast {
     position: fixed;
-    bottom: 80px; /* 调整位置到底部 */
+    bottom: 80px;
     right: 30px;
     background: rgba(255, 255, 255, 0.9);
     color: #20232a;
@@ -334,14 +293,23 @@ body.dark-mode .achievement-toast .achievement-description {
 }
 
 .direction-buttons button {
-    padding: 15px;
-    font-size: 24px;
+    padding: 10px;
+    font-size: 18px;
     border-radius: 50%;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: none;
+    color: #20232a;
 }
 
 body.dark-mode .direction-buttons button {
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: #20232a;
+    background: rgba(30, 30, 30, 0.7);
+    color: white;
+}
+
+.direction-buttons button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* 暂停按钮样式 */
@@ -354,11 +322,23 @@ body.dark-mode .direction-buttons button {
 
 #pause {
     margin-bottom: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: none;
+    color: #20232a;
+    border-radius: 10px;
 }
 
 body.dark-mode #pause {
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: #20232a;
+    background: rgba(30, 30, 30, 0.7);
+    color: white;
+}
+
+#pause:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* 暂停遮罩层样式 */
@@ -395,9 +375,32 @@ body.dark-mode .pause-message {
 
 .pause-options {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 10px;
     margin-top: 20px;
+    justify-content: center;
+}
+
+.pause-options button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    border: 2px solid #20232a;
+    border-radius: 10px;
+    color: #20232a;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-mode .pause-options button {
+    background: linear-gradient(45deg, #4ecdc4, #ff6b6b);
+    color: white;
+}
+
+.pause-options button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* 设置菜单样式 */
@@ -483,6 +486,7 @@ body.dark-mode #difficultySelect {
     color: #555;
     max-width: 200px;
     text-align: left;
+    display: none;
 }
 
 body.dark-mode .keyboard-hint {
@@ -545,13 +549,20 @@ body.dark-mode .spinner {
     border-top-color: white;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
 .splash-loader p {
     color: white;
     font-size: 1rem;
+}
+
+/* 淡出动画 */
+.fadeOut {
+    animation: fadeOut 0.5s forwards;
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+    }
 }
 
 /* 游戏信息显示区域样式 */
@@ -588,27 +599,4 @@ body.dark-mode .game-info div {
 
 body.dark-mode .game-info div:hover {
     background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* 音效选项样式 */
-.sound-options {
-    margin-top: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.sound-options label {
-    font-size: 18px;
-    margin-right: 10px;
-}
-
-body.dark-mode .sound-options label {
-    color: white;
-}
-
-.sound-options input {
-    width: 20px;
-    height: 20px;
-    accent-color: #4ecdc4;
 }
