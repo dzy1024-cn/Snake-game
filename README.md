@@ -17,7 +17,7 @@
 
 ## 📱 预览
 
-![Snake game Preview](https://github.com/dzy1024-cn/Snake-game/blob/main/screenshot.png)
+![Snake game Preview](https://img.z4a.net/images/2025/04/10/screenshot.png)
 
 ## 🚀 如何运行
 
