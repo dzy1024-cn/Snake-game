@@ -10,9 +10,12 @@ const tileCountHeight = canvas.height / gridSize;
 // 游戏状态
 let snake = [];
 let direction = { x: 0, y: 0 };
+let aiSnake = [];
+let aiDirection = { x: 0, y: 0 };
 let food = {};
 let score = 0;
 let gameInterval;
+let aiGameInterval;
 let difficulty = 'medium';
 let gameRunning = false;
 let gamePaused = false;
@@ -22,7 +25,17 @@ let timerInterval;
 let level = 1;
 const levelThresholds = [20, 50, 100, 200, 300];
 let hasShield = false;
-let shieldActiveUntilNextFood = false; // 新增：护盾持续到下一个食物
+let shieldActiveUntilNextFood = false;
+let aiHasShield = false;
+let aiSpeedBoost = false;
+let aiEnabled = false; // AI蛇开关状态
+
+// 新增元素
+let portals = []; // 传送门
+let bombs = []; // 炸弹
+let obstacles = []; // 障碍物
+let rainbowFoodCount = 0; // 彩虹食物计数
+let bombDodgeCount = 0; // 炸弹躲避计数
 
 // 难度级别设置
 const difficultyLevels = {
@@ -39,7 +52,9 @@ const achievements = {
     score100: false,
     timeSurvived30: false,
     timeSurvived60: false,
-    timeSurvived120: false
+    timeSurvived120: false,
+    rainbowMaster: false, // 吃到10个彩虹食物
+    bombDodger: false // 成功躲避10个炸弹
 };
 
 // 历史最高分
@@ -50,8 +65,24 @@ let leaderboard = localStorage.getItem('snakeGameLeaderboard') ? JSON.parse(loca
 
 // 初始化游戏
 function initGame() {
+    // 初始化主角蛇
     snake = [{ x: tileCountWidth / 2, y: tileCountHeight / 2 }];
     direction = { x: 0, y: 0 };
+    
+    // 根据开关状态初始化AI蛇
+    if (aiEnabled) {
+        initAISnake();
+    }
+    
+    // 初始化传送门
+    portals = generatePortals();
+    
+    // 初始化炸弹
+    bombs = generateBombs();
+    
+    // 初始化障碍物
+    obstacles = generateObstacles();
+    
     food = generateFood();
     score = 0;
     gameRunning = true;
@@ -59,7 +90,11 @@ function initGame() {
     waitingForInput = true;
     level = 1;
     hasShield = false;
-    shieldActiveUntilNextFood = false; // 重置护盾状态
+    shieldActiveUntilNextFood = false;
+    aiHasShield = false;
+    aiSpeedBoost = false;
+    rainbowFoodCount = 0;
+    bombDodgeCount = 0;
 
     document.getElementById('score').innerText = score;
     document.getElementById('timer').innerText = '0';
@@ -68,6 +103,7 @@ function initGame() {
 
     // 清除之前的定时器
     if (gameInterval) clearInterval(gameInterval);
+    if (aiGameInterval) clearInterval(aiGameInterval);
     if (timerInterval) clearInterval(timerInterval);
 
     startTime = Date.now();
@@ -81,6 +117,79 @@ function initGame() {
 
     // 启动游戏循环
     gameInterval = setInterval(gameLoop, difficultyLevels[difficulty]);
+    
+    // 如果AI蛇启用，启动AI蛇的独立游戏循环
+    if (aiEnabled) {
+        aiGameInterval = setInterval(aiGameLoop, difficultyLevels[difficulty] + 50);
+    }
+}
+
+// 初始化AI蛇
+function initAISnake() {
+    aiSnake = [{ x: tileCountWidth / 2 + 3, y: tileCountHeight / 2 + 3 }];
+    aiDirection = { x: 0, y: 0 };
+}
+
+// 生成传送门
+function generatePortals() {
+    const portal1 = {
+        x: Math.floor(Math.random() * tileCountWidth),
+        y: Math.floor(Math.random() * tileCountHeight)
+    };
+    const portal2 = {
+        x: Math.floor(Math.random() * tileCountWidth),
+        y: Math.floor(Math.random() * tileCountHeight)
+    };
+    return [portal1, portal2];
+}
+
+// 生成炸弹
+function generateBombs() {
+    const bombCount = 5; // 初始炸弹数量
+    const bombs = [];
+    for (let i = 0; i < bombCount; i++) {
+        let validPosition = false;
+        let bomb;
+        while (!validPosition) {
+            bomb = {
+                x: Math.floor(Math.random() * tileCountWidth),
+                y: Math.floor(Math.random() * tileCountHeight),
+                active: true
+            };
+            validPosition = true;
+            // 检查炸弹是否生成在蛇或AI蛇身上
+            if (snake.some(segment => segment.x === bomb.x && segment.y === bomb.y) ||
+                (aiEnabled && aiSnake.some(segment => segment.x === bomb.x && segment.y === bomb.y))) {
+                validPosition = false;
+            }
+        }
+        bombs.push(bomb);
+    }
+    return bombs;
+}
+
+// 生成障碍物
+function generateObstacles() {
+    const obstacleCount = 10; // 初始障碍物数量
+    const obstacles = [];
+    for (let i = 0; i < obstacleCount; i++) {
+        let validPosition = false;
+        let obstacle;
+        while (!validPosition) {
+            obstacle = {
+                x: Math.floor(Math.random() * tileCountWidth),
+                y: Math.floor(Math.random() * tileCountHeight)
+            };
+            validPosition = true;
+            // 检查障碍物是否生成在蛇或AI蛇身上
+            if (snake.some(segment => segment.x === obstacle.x && segment.y === obstacle.y) ||
+                (aiEnabled && aiSnake.some(segment => segment.x === obstacle.x && segment.y === obstacle.y))) {
+                validPosition = false;
+            }
+        }
+        obstacles.push(obstacle);
+    }
+    return obstacles;
 }
 
 // 生成食物
@@ -95,9 +204,42 @@ function generateFood() {
             y: Math.floor(Math.random() * tileCountHeight)
         };
 
-        // 检查食物是否生成在蛇身上
+        // 检查食物是否生成在蛇或AI蛇身上
         for (let segment of snake) {
             if (segment.x === newFood.x && segment.y === newFood.y) {
+                overlapping = true;
+                break;
+            }
+        }
+        
+        if (aiEnabled) {
+            for (let segment of aiSnake) {
+                if (segment.x === newFood.x && segment.y === newFood.y) {
+                    overlapping = true;
+                    break;
+                }
+            }
+        }
+        
+        // 检查食物是否生成在障碍物上
+        for (let obstacle of obstacles) {
+            if (obstacle.x === newFood.x && obstacle.y === newFood.y) {
+                overlapping = true;
+                break;
+            }
+        }
+        
+        // 检查食物是否生成在传送门上
+        for (let portal of portals) {
+            if (portal.x === newFood.x && portal.y === newFood.y) {
+                overlapping = true;
+                break;
+            }
+        }
+        
+        // 检查食物是否生成在炸弹上
+        for (let bomb of bombs) {
+            if (bomb.x === newFood.x && bomb.y === newFood.y && bomb.active) {
                 overlapping = true;
                 break;
             }
@@ -117,6 +259,10 @@ function generateFood() {
         newFood.type = 'long';
     } else if (Math.random() < 0.2) {
         newFood.type = 'shield';
+    } else if (Math.random() < 0.05) {
+        newFood.type = 'poison'; // 毒药食物
+    } else if (Math.random() < 0.05) {
+        newFood.type = 'rainbow'; // 彩虹食物
     } else {
         newFood.type = 'normal';
     }
@@ -129,6 +275,13 @@ function gameLoop() {
     if (!gamePaused) {
         update();
         draw();
+    }
+}
+
+// AI蛇的独立游戏循环
+function aiGameLoop() {
+    if (!gamePaused && aiEnabled) {
+        updateAISnake();
     }
 }
 
@@ -148,10 +301,20 @@ function update() {
     let deathReason = '';
     let gameOver = false;
 
-    // 检查碰撞 - 修改后的护盾逻辑
+    // 检查碰撞 - 主角蛇撞墙
     if (head.x < 0 || head.x >= tileCountWidth || head.y < 0 || head.y >= tileCountHeight) {
+        deathReason = '你撞到了墙壁!';
+        gameOver = true;
+    } 
+    // 检查碰撞 - 主角蛇撞到自己
+    else if (snake.some((segment, index) => index !== 0 && segment.x === head.x && segment.y === head.y)) {
+        deathReason = '你撞到了自己!';
+        gameOver = true;
+    }
+    // 检查碰撞 - 主角蛇撞到AI蛇
+    else if (aiEnabled && aiSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
         if (!hasShield && !shieldActiveUntilNextFood) {
-            deathReason = '你撞到了墙壁!';
+            deathReason = '你撞到了AI蛇!';
             gameOver = true;
         } else {
             // 护盾生效，穿墙
@@ -160,17 +323,42 @@ function update() {
             if (head.y < 0) head.y = tileCountHeight - 1;
             else if (head.y >= tileCountHeight) head.y = 0;
         }
-    } else if (snake.some((segment, index) => index !== 0 && segment.x === head.x && segment.y === head.y)) {
+    }
+    // 检查碰撞 - 主角蛇撞到炸弹
+    else if (bombs.some(bomb => bomb.x === head.x && bomb.y === head.y && bomb.active)) {
         if (!hasShield && !shieldActiveUntilNextFood) {
-            deathReason = '你撞到了自己!';
+            deathReason = '你撞到了炸弹!';
             gameOver = true;
+        } else {
+            // 护盾生效，炸弹失效
+            bombs.forEach(bomb => {
+                if (bomb.x === head.x && bomb.y === head.y) {
+                    bomb.active = false;
+                    bombDodgeCount++;
+                    if (bombDodgeCount >= 10 && !achievements.bombDodger) {
+                        achievements.bombDodger = true;
+                        showAchievement('炸弹躲避者！', '成功躲避10个炸弹！');
+                    }
+                }
+            });
         }
-        // 有护盾时允许穿过自己身体
+    }
+    // 检查碰撞 - 主角蛇撞到障碍物
+    else if (obstacles.some(obstacle => obstacle.x === head.x && obstacle.y === head.y)) {
+        deathReason = '你撞到了障碍物!';
+        gameOver = true;
     }
 
     if (gameOver) {
         endGame(deathReason);
         return;
+    }
+
+    // 传送门逻辑
+    if (portals.some(portal => portal.x === head.x && portal.y === head.y)) {
+        const otherPortal = portals.find(p => p.x !== head.x || p.y !== head.y);
+        head.x = otherPortal.x;
+        head.y = otherPortal.y;
     }
 
     // 移动蛇
@@ -212,6 +400,45 @@ function update() {
         } else if (food.type === 'shield') {
             showAchievement('护盾激活！', '可以穿墙和穿过身体直到吃到下一个食物！');
             shieldActiveUntilNextFood = true;
+        } else if (food.type === 'poison') {
+            // 毒药食物：缩短蛇身
+            if (snake.length > 1) {
+                snake.pop();
+                showAchievement('毒药食物！', '蛇缩短了一段！');
+            }
+        } else if (food.type === 'rainbow') {
+            // 彩虹食物：随机效果
+            const effects = ['speed', 'long', 'shield', 'poison'];
+            const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+            
+            if (randomEffect === 'speed') {
+                showAchievement('彩虹食物 - 速度提升！', '蛇的速度将加快一段时间');
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, difficultyLevels[difficulty] - 30);
+                setTimeout(() => {
+                    clearInterval(gameInterval);
+                    gameInterval = setInterval(gameLoop, difficultyLevels[difficulty]);
+                }, 10000);
+            } else if (randomEffect === 'long') {
+                for (let i = 0; i < 3; i++) {
+                    snake.push({ ...snake[snake.length - 1] });
+                }
+                showAchievement('彩虹食物 - 长段食物！', '蛇将变长更多段');
+            } else if (randomEffect === 'shield') {
+                showAchievement('彩虹食物 - 护盾激活！', '可以穿墙和穿过身体直到吃到下一个食物！');
+                shieldActiveUntilNextFood = true;
+            } else if (randomEffect === 'poison') {
+                if (snake.length > 1) {
+                    snake.pop();
+                    showAchievement('彩虹食物 - 毒药效果！', '蛇缩短了一段！');
+                }
+            }
+            
+            rainbowFoodCount++;
+            if (rainbowFoodCount >= 10 && !achievements.rainbowMaster) {
+                achievements.rainbowMaster = true;
+                showAchievement('彩虹大师！', '成功吃到10个彩虹食物！');
+            }
         }
         
         food = generateFood();
@@ -239,8 +466,143 @@ function update() {
     updateTimer();
 }
 
+// AI蛇的移动逻辑
+function updateAISnake() {
+    if (!aiEnabled || aiSnake.length === 0) return;
+
+    // 如果AI蛇还没有选择方向，随机选择一个
+    if (aiDirection.x === 0 && aiDirection.y === 0) {
+        const directions = [
+            { x: 0, y: -1 },
+            { x: 0, y: 1 },
+            { x: -1, y: 0 },
+            { x: 1, y: 0 }
+        ];
+        aiDirection = directions[Math.floor(Math.random() * directions.length)];
+    }
+
+    // 计算AI蛇头部的新位置
+    const aiHead = { x: aiSnake[0].x + aiDirection.x, y: aiSnake[0].y + aiDirection.y };
+
+    // 检查AI蛇是否吃到食物
+    if (aiHead.x === food.x && aiHead.y === food.y) {
+        // 吃到食物，增加AI蛇的长度
+        aiSnake.unshift(aiHead);
+        // 应用食物效果
+        applyFoodEffectToAI();
+        food = generateFood(); // 生成新食物
+    } else {
+        // 没吃到食物，正常移动
+        aiSnake.unshift(aiHead);
+        aiSnake.pop();
+    }
+
+    // 简单的AI逻辑：优先朝食物方向移动，但有一定概率随机移动
+    const foodXDiff = food.x - aiSnake[0].x;
+    const foodYDiff = food.y - aiSnake[0].y;
+
+    // 有一定概率随机改变方向
+    if (Math.random() < 0.3) {
+        const directions = [
+            { x: 0, y: -1 },
+            { x: 0, y: 1 },
+            { x: -1, y: 0 },
+            { x: 1, y: 0 }
+        ];
+        aiDirection = directions[Math.floor(Math.random() * directions.length)];
+    } else {
+        if (Math.abs(foodXDiff) > Math.abs(foodYDiff)) {
+            aiDirection = foodXDiff > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+        } else {
+            aiDirection = foodYDiff > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+        }
+    }
+
+    // 避免撞墙
+    if (aiHead.x < 0 || aiHead.x >= tileCountWidth || aiHead.y < 0 || aiHead.y >= tileCountHeight) {
+        aiDirection = { x: Math.random() > 0.5 ? 1 : -1, y: Math.random() > 0.5 ? 1 : -1 };
+    }
+
+    // 避免撞到主角蛇
+    if (snake.some(segment => segment.x === aiHead.x && segment.y === aiHead.y)) {
+        aiDirection = { x: Math.random() > 0.5 ? 1 : -1, y: Math.random() > 0.5 ? 1 : -1 };
+    }
+
+    // 避免撞到障碍物
+    if (obstacles.some(obstacle => obstacle.x === aiHead.x && obstacle.y === aiHead.y)) {
+        aiDirection = { x: Math.random() > 0.5 ? 1 : -1, y: Math.random() > 0.5 ? 1 : -1 };
+    }
+
+    // 避免撞到炸弹
+    if (bombs.some(bomb => bomb.x === aiHead.x && bomb.y === aiHead.y && bomb.active)) {
+        aiDirection = { x: Math.random() > 0.5 ? 1 : -1, y: Math.random() > 0.5 ? 1 : -1 };
+    }
+}
+
+// 应用食物效果到AI蛇
+function applyFoodEffectToAI() {
+    if (food.type === 'speed') {
+        // AI蛇速度提升
+        aiSpeedBoost = true;
+        clearInterval(aiGameInterval);
+        aiGameInterval = setInterval(aiGameLoop, difficultyLevels[difficulty] - 30);
+        setTimeout(() => {
+            aiSpeedBoost = false;
+            clearInterval(aiGameInterval);
+            aiGameInterval = setInterval(aiGameLoop, difficultyLevels[difficulty] + 50);
+        }, 10000);
+    } else if (food.type === 'long') {
+        // AI蛇变长
+        for (let i = 0; i < 3; i++) {
+            aiSnake.push({ ...aiSnake[aiSnake.length - 1] });
+        }
+    } else if (food.type === 'shield') {
+        // AI蛇获得护盾
+        aiHasShield = true;
+        setTimeout(() => {
+            aiHasShield = false;
+        }, 10000);
+    } else if (food.type === 'poison') {
+        // AI蛇缩短
+        if (aiSnake.length > 1) {
+            aiSnake.pop();
+        }
+    } else if (food.type === 'rainbow') {
+        // AI蛇随机效果
+        const effects = ['speed', 'long', 'shield', 'poison'];
+        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+        
+        if (randomEffect === 'speed') {
+            aiSpeedBoost = true;
+            clearInterval(aiGameInterval);
+            aiGameInterval = setInterval(aiGameLoop, difficultyLevels[difficulty] - 30);
+            setTimeout(() => {
+                aiSpeedBoost = false;
+                clearInterval(aiGameInterval);
+                aiGameInterval = setInterval(aiGameLoop, difficultyLevels[difficulty] + 50);
+            }, 10000);
+        } else if (randomEffect === 'long') {
+            for (let i = 0; i < 3; i++) {
+                aiSnake.push({ ...aiSnake[aiSnake.length - 1] });
+            }
+        } else if (randomEffect === 'shield') {
+            aiHasShield = true;
+            setTimeout(() => {
+                aiHasShield = false;
+            }, 10000);
+        } else if (randomEffect === 'poison') {
+            if (aiSnake.length > 1) {
+                aiSnake.pop();
+            }
+        }
+    }
+}
+
 // 绘制游戏画面
 function draw() {
+    // 清除画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
     // 绘制背景网格
     ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#222' : '#f5f7fa';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -248,16 +610,12 @@ function draw() {
     // 绘制网格线
     ctx.strokeStyle = document.body.classList.contains('dark-mode') ? '#444' : '#e0e0e0';
     ctx.lineWidth = 0.5;
-
-    // 水平线
     for (let i = 0; i < tileCountHeight; i++) {
         ctx.beginPath();
         ctx.moveTo(0, i * gridSize);
         ctx.lineTo(canvas.width, i * gridSize);
         ctx.stroke();
     }
-
-    // 垂直线
     for (let i = 0; i < tileCountWidth; i++) {
         ctx.beginPath();
         ctx.moveTo(i * gridSize, 0);
@@ -265,7 +623,142 @@ function draw() {
         ctx.stroke();
     }
 
-    // 绘制蛇
+    // 绘制障碍物
+    ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#888' : '#555';
+    obstacles.forEach(obstacle => {
+        ctx.beginPath();
+        ctx.rect(
+            obstacle.x * gridSize,
+            obstacle.y * gridSize,
+            gridSize,
+            gridSize
+        );
+        ctx.fill();
+    });
+
+    // 绘制传送门
+    ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#74b9ff' : '#0984e3';
+    portals.forEach(portal => {
+        ctx.beginPath();
+        ctx.arc(
+            portal.x * gridSize + gridSize/2,
+            portal.y * gridSize + gridSize/2,
+            gridSize/2 - 1,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+        
+        // 传送门光效
+        ctx.save();
+        ctx.strokeStyle = 'rgba(13, 171, 255, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(
+            portal.x * gridSize + gridSize/2,
+            portal.y * gridSize + gridSize/2,
+            gridSize/2 + 3,
+            0,
+            Math.PI * 2
+        );
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    // 绘制炸弹
+    bombs.forEach(bomb => {
+        if (bomb.active) {
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#ff4757' : '#ff6b6b';
+            ctx.beginPath();
+            ctx.arc(
+                bomb.x * gridSize + gridSize/2,
+                bomb.y * gridSize + gridSize/2,
+                gridSize/2 - 1,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+            
+            // 炸弹引线
+            ctx.strokeStyle = '#ffeb3b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(bomb.x * gridSize + gridSize/2, bomb.y * gridSize + gridSize/4);
+            ctx.lineTo(bomb.x * gridSize + gridSize/2, bomb.y * gridSize + gridSize/2);
+            ctx.stroke();
+        }
+    });
+
+    // 绘制AI蛇
+    if (aiEnabled) {
+        const aiSnakeColor = document.body.classList.contains('dark-mode') ? '#ff6b6b' : '#ff9f43';
+        aiSnake.forEach((segment, index) => {
+            if (index === 0) {
+                // AI蛇头
+                ctx.fillStyle = aiSnakeColor;
+                ctx.beginPath();
+                ctx.arc(
+                    segment.x * gridSize + gridSize/2,
+                    segment.y * gridSize + gridSize/2,
+                    gridSize/2,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+
+                // AI蛇眼
+                ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#ffffff' : '#20232a';
+                ctx.beginPath();
+                ctx.arc(
+                    segment.x * gridSize + gridSize/3,
+                    segment.y * gridSize + gridSize/3,
+                    2,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.arc(
+                    segment.x * gridSize + gridSize*2/3,
+                    segment.y * gridSize + gridSize/3,
+                    2,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            } else {
+                // AI蛇身
+                ctx.fillStyle = aiSnakeColor;
+                ctx.beginPath();
+                ctx.arc(
+                    segment.x * gridSize + gridSize/2,
+                    segment.y * gridSize + gridSize/2,
+                    gridSize/2 - 1,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            // 护盾特效
+            if (aiHasShield) {
+                ctx.save();
+                ctx.strokeStyle = '#4ecdc4';
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.arc(
+                    segment.x * gridSize + gridSize/2,
+                    segment.y * gridSize + gridSize/2,
+                    gridSize/2 + 3,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.stroke();
+                ctx.restore();
+            }
+        });
+    }
+
+    // 绘制主角蛇
     const snakeColor = document.body.classList.contains('dark-mode') ? '#ffffff' : '#4ecdc4';
     const snakeHeadColor = '#ff6b6b';
     const snakeEyeColor = document.body.classList.contains('dark-mode') ? '#000000' : '#ffffff';
@@ -274,121 +767,270 @@ function draw() {
         if (index === 0) {
             // 蛇头
             ctx.fillStyle = snakeHeadColor;
-            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
+            ctx.beginPath();
+            ctx.arc(
+                segment.x * gridSize + gridSize/2,
+                segment.y * gridSize + gridSize/2,
+                gridSize/2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
 
             // 蛇眼
             ctx.fillStyle = snakeEyeColor;
-            ctx.fillRect(segment.x * gridSize + 4, segment.y * gridSize + 4, 4, 4);
-            ctx.fillRect(segment.x * gridSize + gridSize - 8, segment.y * gridSize + 4, 4, 4);
+            ctx.beginPath();
+            ctx.arc(
+                segment.x * gridSize + gridSize/3,
+                segment.y * gridSize + gridSize/3,
+                2,
+                0,
+                Math.PI * 2
+            );
+            ctx.arc(
+                segment.x * gridSize + gridSize*2/3,
+                segment.y * gridSize + gridSize/3,
+                2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
         } else {
             // 蛇身
             ctx.fillStyle = snakeColor;
-            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
+            ctx.beginPath();
+            ctx.arc(
+                segment.x * gridSize + gridSize/2,
+                segment.y * gridSize + gridSize/2,
+                gridSize/2 - 1,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
         }
 
-        // 护盾视觉效果
+        // 护盾特效
         if (shieldActiveUntilNextFood) {
             ctx.save();
-            ctx.globalAlpha = 0.5;
             ctx.strokeStyle = '#4ecdc4';
             ctx.lineWidth = 2;
-            ctx.strokeRect(
-                segment.x * gridSize - 2,
-                segment.y * gridSize - 2,
-                gridSize + 4,
-                gridSize + 4
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.arc(
+                segment.x * gridSize + gridSize/2,
+                segment.y * gridSize + gridSize/2,
+                gridSize/2 + 3,
+                0,
+                Math.PI * 2
             );
+            ctx.stroke();
             ctx.restore();
         }
     });
 
     // 绘制食物
-    if (food.type === 'speed') {
-        ctx.fillStyle = '#ff9f43';
-        ctx.beginPath();
-        ctx.arc(
-            food.x * gridSize + gridSize / 2,
-            food.y * gridSize + gridSize / 2,
-            gridSize / 2 - 2,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-        
-        ctx.fillStyle = 'white';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('⚡', food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2);
-    } else if (food.type === 'long') {
-        ctx.fillStyle = '#ff6b6b';
-        ctx.beginPath();
-        ctx.arc(
-            food.x * gridSize + gridSize / 2,
-            food.y * gridSize + gridSize / 2,
-            gridSize / 2 - 2,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-        
-        ctx.fillStyle = 'white';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('↔', food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2);
-    } else if (food.type === 'shield') {
-        // 护盾食物带脉冲效果
-        ctx.fillStyle = '#4ecdc4';
-        ctx.beginPath();
-        ctx.arc(
-            food.x * gridSize + gridSize / 2,
-            food.y * gridSize + gridSize / 2,
-            gridSize / 2 - 2,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-        
-        // 脉冲动画
-        ctx.save();
-        ctx.globalAlpha = 0.3;
-        ctx.beginPath();
-        ctx.arc(
-            food.x * gridSize + gridSize / 2,
-            food.y * gridSize + gridSize / 2,
-            gridSize / 2 + Math.sin(Date.now()/200)*3,
-            0,
-            Math.PI * 2
-        );
-        ctx.strokeStyle = '#4ecdc4';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-        
-        ctx.fillStyle = 'white';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🛡️', food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2);
-    } else {
-        ctx.fillStyle = '#ff9f43';
-        ctx.beginPath();
-        ctx.arc(
-            food.x * gridSize + gridSize / 2,
-            food.y * gridSize + gridSize / 2,
-            gridSize / 2 - 2,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-    }
-}
+    const drawFoodWithEffect = () => {
+        // 加速食物
+        if (food.type === 'speed') {
+            // 闪电脉冲背景
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 235, 59, 0.2)';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2,
+                gridSize/2 + Math.sin(Date.now()/150)*5,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+            ctx.restore();
 
+            // 食物本体
+            ctx.fillStyle = '#ff9f43';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2,
+                gridSize/2 - 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // 闪电图标
+            ctx.save();
+            ctx.translate(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2
+            );
+            ctx.rotate(Math.sin(Date.now()/300) * 0.2);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 18px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('⚡', 0, 0);
+            ctx.restore();
+        } 
+        // 长段食物
+        else if (food.type === 'long') {
+            // 脉动效果
+            const pulse = Math.sin(Date.now()/200) * 2;
+            ctx.fillStyle = '#ff6b6b';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2,
+                gridSize/2 - 2 + pulse,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // 伸长图标
+            ctx.save();
+            ctx.translate(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2
+            );
+            ctx.scale(1 + pulse/10, 1);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('↔', 0, 0);
+            ctx.restore();
+        }
+        // 护盾食物
+        else if (food.type === 'shield') {
+            // 多层护盾效果
+            ctx.save();
+            for (let i = 0; i < 3; i++) {
+                ctx.strokeStyle = `rgba(78, 205, 196, ${0.7 - i*0.2})`;
+                ctx.lineWidth = 2 - i*0.5;
+                ctx.beginPath();
+                ctx.arc(
+                    food.x * gridSize + gridSize/2,
+                    food.y * gridSize + gridSize/2,
+                    gridSize/2 - 2 + Math.sin(Date.now()/300 + i)*5,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // 食物本体
+            ctx.fillStyle = '#4ecdc4';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2,
+                gridSize/2 - 3,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // 护盾图标
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🛡️', 
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2
+            );
+        }
+        // 毒药食物
+        else if (food.type === 'poison') {
+            // 毒药效果
+            ctx.save();
+            ctx.fillStyle = '#00b894';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2,
+                gridSize/2 - 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // 毒药图标
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('☠', 
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2
+            );
+            ctx.restore();
+        }
+        // 彩虹食物
+        else if (food.type === 'rainbow') {
+            // 彩虹效果
+            ctx.save();
+            ctx.fillStyle = 'rgba(124, 58, 183, 0.7)';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2,
+                gridSize/2 - 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // 彩虹图标
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🌈', 
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2
+            );
+            ctx.restore();
+        }
+        // 普通食物
+        else {
+            // 旋转光点
+            ctx.save();
+            ctx.translate(
+                food.x * gridSize + gridSize/2,
+                food.y * gridSize + gridSize/2
+            );
+            ctx.rotate(Date.now()/500);
+            
+            // 食物本体
+            ctx.fillStyle = '#ff9f43';
+            ctx.beginPath();
+            ctx.arc(0, 0, gridSize/2 - 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 光点
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            for (let i = 0; i < 3; i++) {
+                ctx.rotate(Math.PI*2/3);
+                ctx.beginPath();
+                ctx.arc(6, 0, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    };
+
+    drawFoodWithEffect();
+}
 
 // 结束游戏
 function endGame(reason) {
     clearInterval(gameInterval);
+    if (aiEnabled) {
+        clearInterval(aiGameInterval);
+    }
     gameRunning = false;
 
     if (score > highScore) {
@@ -545,6 +1187,11 @@ document.querySelectorAll('.difficulty-btn').forEach(button => {
 });
 
 document.getElementById('pause').addEventListener('click', togglePause);
+
+// AI蛇开关
+document.getElementById('aiToggle').addEventListener('change', (e) => {
+    aiEnabled = e.target.checked;
+});
 
 // 键盘控制
 document.addEventListener('keydown', e => {
